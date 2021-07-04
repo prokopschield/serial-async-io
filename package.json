@@ -1,0 +1,12 @@
+{
+	"name": "serial-async-io",
+	"description": "Compromise between fs.readFileSync and fs.promises.readFile",
+	"version": "0.1.0-1",
+	"main": "lib/index.js",
+	"author": "Prokop Schield",
+	"license": "GPL-3.0-or-later",
+	"devDependencies": {
+		"@types/node": ">=14"
+	},
+	"keywords": []
+}
