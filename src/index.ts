@@ -91,3 +91,9 @@ async function trigger(): Promise<void> {
 		wake = () => void trigger();
 	}
 }
+
+export default module.exports = {
+	default: { read, write },
+	read,
+	write,
+};
