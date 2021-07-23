@@ -8,6 +8,7 @@ const state = {
 	toWrite: new Set<[string, () => void, Buffer | string]>(),
 	readPromises: new Map<string, Promise<Buffer>>(),
 	readCallbacks: new Map<string, (b: Buffer) => void>(),
+	toReadLater: new Set<string>(),
 };
 
 /**
@@ -75,20 +76,28 @@ async function trigger(): Promise<void> {
 			state.toWrite.delete(to_write);
 		}
 		for (const to_read of state.toRead.values()) {
-			const data = await fs.promises.readFile(to_read);
-			state.readCallbacks.get(to_read)?.(data);
-			state.readCallbacks.delete(to_read);
-			state.readPromises.delete(to_read);
+			try {
+				const data = await fs.promises.readFile(to_read);
+				state.readCallbacks.get(to_read)?.(data);
+				state.readCallbacks.delete(to_read);
+				state.readPromises.delete(to_read);
+				state.toReadLater.delete(to_read);
+			} catch (error) {
+				state.toReadLater.add(to_read);
+			}
 			state.toRead.delete(to_read);
 		}
 	} catch (error) {
 		wake = () => void trigger();
 		return void setTimeout(() => wake());
 	}
+	wake = () => void trigger();
 	if (state.toRead.size || state.toWrite.size) {
-		setTimeout(() => trigger());
-	} else {
-		wake = () => void trigger();
+		setTimeout(wake);
+	} else if (state.toReadLater.size) {
+		for (const entry of state.toReadLater) {
+			state.toRead.add(entry);
+		}
 	}
 }
 
