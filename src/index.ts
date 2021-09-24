@@ -101,8 +101,9 @@ async function trigger(): Promise<void> {
 	}
 }
 
-export default module.exports = {
-	default: { read, write },
-	read,
-	write,
-};
+const def = { read, write };
+const prop = { get: () => def };
+
+Object.defineProperties(def, { def: prop, default: prop });
+
+export default def;
