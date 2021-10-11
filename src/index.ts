@@ -98,10 +98,42 @@ async function trigger(): Promise<void> {
 		for (const entry of state.toReadLater) {
 			state.toRead.add(entry);
 		}
+	} else {
+		const cb = finished_callback_array.shift();
+		if (cb) cb(finished_callback_array.length);
 	}
 }
 
-const def = { read, write };
+/** Internal array of callbacks */
+const finished_callback_array = Array<(remaining_callbacks: number) => void>();
+
+/**
+ * Add a custom callback
+ * gets called once, when all io is finished
+ */
+const add_finished_callback = (cb: (remaining_callbacks: number) => void) =>
+	finished_callback_array.push(cb);
+
+/**
+ * Get a Promise
+ * gets resolved when all io is finished
+ */
+const get_finished_promise = () =>
+	new Promise((resolve) =>
+		finished_callback_array.push(() =>
+			resolve(finished_callback_array.length)
+		)
+	);
+
+export const finished = {
+	callbacks: finished_callback_array,
+	add_callback: add_finished_callback,
+	get_promise: get_finished_promise,
+};
+
+Object.freeze(finished);
+
+const def = { read, write, finished };
 const prop = { get: () => def };
 
 Object.defineProperties(def, { def: prop, default: prop });
