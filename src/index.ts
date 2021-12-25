@@ -5,7 +5,14 @@ let wake = () => void trigger();
 
 const state = {
 	toRead: new Set<string>(),
-	toWrite: new Set<[string, () => void, Buffer | string]>(),
+	toWrite: new Set<
+		[
+			string,
+			() => void,
+			/* rejection */ (e: unknown) => void,
+			Buffer | string
+		]
+	>(),
 	readPromises: new Map<string, Promise<Buffer>>(),
 	readCallbacks: new Map<string, (b: Buffer) => void>(),
 	toReadLater: new Set<string>(),
@@ -55,11 +62,12 @@ export function write(
 	data: TypedArray | string
 ): Promise<void> {
 	file_path = path.resolve(file_path);
-	return new Promise((resolve) => {
+	return new Promise((resolve, reject) => {
 		// Don't keep a referrence to the data object
 		state.toWrite.add([
 			file_path,
 			resolve,
+			reject,
 			typeof data === 'string' ? data : Buffer.from(data),
 		]);
 		wake();
@@ -70,9 +78,13 @@ async function trigger(): Promise<void> {
 	wake = () => void null;
 	try {
 		for (const to_write of state.toWrite.values()) {
-			const [file, cb, buf] = to_write;
-			await fs.promises.writeFile(file, buf);
-			cb();
+			const [file, cb, reject, buf] = to_write;
+			try {
+				await fs.promises.writeFile(file, buf);
+				cb();
+			} catch (error) {
+				reject(error);
+			}
 			state.toWrite.delete(to_write);
 		}
 		for (const to_read of state.toRead.values()) {
