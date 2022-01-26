@@ -4,6 +4,7 @@ import path from 'path';
 let wake = () => void trigger();
 
 const state = {
+	toStat: new Set<string>(),
 	toRead: new Set<string>(),
 	toWrite: new Set<
 		[
@@ -13,10 +14,26 @@ const state = {
 			Buffer | string
 		]
 	>(),
+	statPromises: new Map<string, Promise<fs.Stats | false>>(),
+	statCallbacks: new Map<string, (b: fs.Stats | false) => void>(),
 	readPromises: new Map<string, Promise<Buffer>>(),
 	readCallbacks: new Map<string, (b: Buffer) => void>(),
 	toReadLater: new Set<string>(),
 };
+
+export function stat(file_path: string): Promise<fs.Stats | false> {
+	file_path = path.resolve(file_path);
+	if (state.statPromises.has(file_path)) {
+		return state.statPromises.get(file_path) || stat(file_path);
+	}
+	const promise = new Promise<fs.Stats | false>((resolve) => {
+		state.statCallbacks.set(file_path, (b: fs.Stats | false) => resolve(b));
+		state.toStat.add(file_path);
+		wake();
+	});
+	state.statPromises.set(file_path, promise);
+	return promise;
+}
 
 /**
  * Asynchronously read a file
@@ -77,6 +94,15 @@ export function write(
 async function trigger(): Promise<void> {
 	wake = () => void null;
 	try {
+		for (const to_stat of state.toStat.values()) {
+			const stat: fs.Stats | false = await fs.promises
+				.stat(to_stat)
+				.catch(() => false);
+			state.statCallbacks.get(to_stat)?.(stat);
+			state.statCallbacks.delete(to_stat);
+			state.statPromises.delete(to_stat);
+			state.toStat.delete(to_stat);
+		}
 		for (const to_write of state.toWrite.values()) {
 			const [file, cb, reject, buf] = to_write;
 			try {
