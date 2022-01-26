@@ -171,7 +171,7 @@ export const finished = {
 
 Object.freeze(finished);
 
-const def = { read, write, finished };
+const def = { read, write, stat, finished };
 const prop = { get: () => def };
 
 Object.defineProperties(def, { def: prop, default: prop });
